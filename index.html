@@ -109,6 +109,7 @@
     transition: transform .15s, border-color .15s, opacity .15s;
   }
   .chip:hover { transform: translateY(-1px); border-color: rgba(160, 190, 255, .6); }
+  a.chip { text-decoration: none; color: var(--ink); }
   .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
   .chip.dim { opacity: .38; }
   .chip[data-strand="life"] .dot { background: var(--life); }
@@ -208,6 +209,8 @@
   <button class="chip" id="btnRotate">⏸️ 暫停旋轉</button>
   <button class="chip" id="btnReset">🎯 重設視角</button>
   <button class="chip" id="btnTop">🔝 俯視圖</button>
+  <a class="chip" id="btnFlatMap" href="https://prayer168.github.io/science-course/" target="_blank" rel="noopener">🗺️ 平面課程地圖</a>
+  <a class="chip" id="btnCopyright" href="mailto:prayer168@gmail.com">©️ 版權所有：黑熊老師</a>
 </div>
 <div id="hint">💡 點擊主題節點可看它往上、往下銜接哪些課程</div>
 
