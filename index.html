@@ -60,13 +60,38 @@
   }
 
   #legend {
-    top: 16px; right: 16px;
+    top: 86px; left: 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    align-items: flex-end;
+    align-items: flex-start;
   }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  #legendToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--ink);
+    padding: 8px 14px;
+    font: inherit;
+    font-size: .84rem;
+    font-weight: 800;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+  #legendToggle:hover { border-color: rgba(160, 190, 255, .6); }
+  #legendToggle .arrow { transition: transform .2s; font-size: .7rem; }
+  #legend.collapsed .arrow { transform: rotate(-90deg); }
+  #legend.collapsed .chips { display: none; }
+  .chips {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .chips .chip { justify-content: flex-start; }
   .chip {
     display: inline-flex;
     align-items: center;
@@ -169,6 +194,7 @@
 </div>
 
 <div class="hud" id="legend">
+  <button id="legendToggle">🎨 知識脈絡 <span class="arrow">▼</span></button>
   <div class="chips" id="strandChips">
     <button class="chip" data-strand="all"><span class="dot" style="background:#e8eefb"></span>全部脈絡</button>
     <button class="chip" data-strand="life"><span class="dot"></span>生命科學</button>
@@ -661,6 +687,11 @@ renderer.domElement.addEventListener("pointermove", e => {
   const hits = raycaster.intersectObjects(sprites);
   renderer.domElement.style.cursor =
     hits.some(h => h.object.material.opacity > .3) ? "pointer" : "grab";
+});
+
+/* 脈絡面板摺疊 */
+document.getElementById("legendToggle").addEventListener("click", () => {
+  document.getElementById("legend").classList.toggle("collapsed");
 });
 
 /* 脈絡篩選 */
