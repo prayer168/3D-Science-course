@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>自然科學 3D 課程圖譜｜三年級 → 九年級</title>
+<meta name="description" content="依 115 學年度康軒、翰林、南一自然科課程架構整併，將國小三年級到國中九年級的課程主題做成 3D 圖譜，並以連結線呈現跨年級知識脈絡。" />
+<style>
+  :root {
+    --panel: rgba(13, 20, 38, .82);
+    --line: rgba(120, 150, 210, .25);
+    --ink: #e8eefb;
+    --muted: #9db0d0;
+    --life: #4ade80;
+    --chem: #fbbf24;
+    --phys: #60a5fa;
+    --earth: #f472b6;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background: #060a16;
+    color: var(--ink);
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  .hud {
+    position: fixed;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .hud > * { pointer-events: auto; }
+
+  #titleBox {
+    top: 16px; left: 16px;
+    max-width: min(430px, calc(100vw - 32px));
+  }
+  #titleBox .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 18px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .45);
+  }
+  #titleBox h1 {
+    margin: 0 0 4px;
+    font-size: 1.25rem;
+    letter-spacing: .02em;
+  }
+  #titleBox p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .82rem;
+    line-height: 1.55;
+  }
+
+  #legend {
+    top: 16px; right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--ink);
+    padding: 6px 12px;
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: transform .15s, border-color .15s, opacity .15s;
+  }
+  .chip:hover { transform: translateY(-1px); border-color: rgba(160, 190, 255, .6); }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+  .chip.dim { opacity: .38; }
+  .chip[data-strand="life"] .dot { background: var(--life); }
+  .chip[data-strand="chem"] .dot { background: var(--chem); }
+  .chip[data-strand="phys"] .dot { background: var(--phys); }
+  .chip[data-strand="earth"] .dot { background: var(--earth); }
+
+  #infoPanel {
+    right: 16px; bottom: 16px;
+    width: min(340px, calc(100vw - 32px));
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .45);
+    display: none;
+  }
+  #infoPanel.show { display: block; }
+  #infoPanel .grade-tag {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: .75rem;
+    font-weight: 800;
+    background: rgba(96, 165, 250, .18);
+    color: #93c5fd;
+    margin-bottom: 6px;
+  }
+  #infoPanel h2 { margin: 0 0 6px; font-size: 1.15rem; }
+  #infoPanel h2 .logo { font-size: 1.5rem; margin-right: 6px; }
+  #infoPanel .desc { margin: 0 0 10px; color: var(--muted); font-size: .84rem; line-height: 1.6; }
+  #infoPanel .links-title { font-size: .78rem; font-weight: 800; color: #93c5fd; margin-bottom: 4px; }
+  #infoPanel ul { margin: 0; padding: 0; list-style: none; }
+  #infoPanel li {
+    font-size: .82rem;
+    padding: 3px 0;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  #infoPanel li:hover { color: #93c5fd; }
+  #infoPanel li .mini { font-size: .72rem; color: var(--muted); margin-left: 4px; }
+  #infoPanel .close {
+    position: absolute;
+    top: 10px; right: 12px;
+    border: 0; background: none;
+    color: var(--muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+  #infoPanel { position: fixed; }
+
+  #controlsBar {
+    left: 16px; bottom: 16px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 32px);
+  }
+  #hint {
+    position: fixed;
+    bottom: 62px; left: 16px;
+    z-index: 4;
+    color: var(--muted);
+    font-size: .74rem;
+    pointer-events: none;
+    text-shadow: 0 1px 4px #000;
+  }
+  @media (max-width: 700px) {
+    #titleBox h1 { font-size: 1.02rem; }
+    #titleBox p { display: none; }
+    #hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud" id="titleBox">
+  <div class="card">
+    <h1>🗺️ 自然科學 3D 課程圖譜</h1>
+    <p>整併康軒、翰林、南一 115 學年度課程架構。由下而上為三年級到九年級共七層，
+    每顆節點是一個課程主題，連結線代表跨年級的知識脈絡。拖曳旋轉、滾輪縮放、點擊節點看銜接關係。</p>
+  </div>
+</div>
+
+<div class="hud" id="legend">
+  <div class="chips" id="strandChips">
+    <button class="chip" data-strand="all"><span class="dot" style="background:#e8eefb"></span>全部脈絡</button>
+    <button class="chip" data-strand="life"><span class="dot"></span>生命科學</button>
+    <button class="chip" data-strand="chem"><span class="dot"></span>物質與化學</button>
+    <button class="chip" data-strand="phys"><span class="dot"></span>物理與能量</button>
+    <button class="chip" data-strand="earth"><span class="dot"></span>地球與宇宙</button>
+  </div>
+</div>
+
+<div class="hud" id="controlsBar">
+  <button class="chip" id="btnRotate">⏸️ 暫停旋轉</button>
+  <button class="chip" id="btnReset">🎯 重設視角</button>
+  <button class="chip" id="btnTop">🔝 俯視圖</button>
+</div>
+<div id="hint">💡 點擊主題節點可看它往上、往下銜接哪些課程</div>
+
+<div id="infoPanel">
+  <button class="close" id="infoClose">✕</button>
+  <span class="grade-tag" id="infoGrade"></span>
+  <h2><span class="logo" id="infoLogo"></span><span id="infoName"></span></h2>
+  <p class="desc" id="infoDesc"></p>
+  <div class="links-title">🔗 銜接的課程主題</div>
+  <ul id="infoLinks"></ul>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+/* ---------- 課程資料：整併三版本後的年級核心主題 ---------- */
+const STRAND_COLORS = { life: 0x4ade80, chem: 0xfbbf24, phys: 0x60a5fa, earth: 0xf472b6 };
+const GRADE_NAMES = { 3: "三年級", 4: "四年級", 5: "五年級", 6: "六年級", 7: "七年級", 8: "八年級", 9: "九年級" };
+const GRADE_COLORS = { 3: 0x34d399, 4: 0x2dd4bf, 5: 0x38bdf8, 6: 0x818cf8, 7: 0xa78bfa, 8: 0xe879f9, 9: 0xfb7185 };
+
+const NODES = [
+  /* 三年級 */
+  { id: "g3-plant",    grade: 3, strand: "life",  logo: "🌱", name: "植物觀察",       desc: "認識植物的根莖葉、花果實與種子，觀察植物如何獲取陽光和水。" },
+  { id: "g3-planting", grade: 3, strand: "life",  logo: "🥬", name: "種植與栽培",     desc: "田園樂、快樂小農夫：親手種菜，記錄蔬菜生長的變化與影響因素。" },
+  { id: "g3-animal",   grade: 3, strand: "life",  logo: "🐰", name: "動物的身體與生存", desc: "動物的身體構造、運動方式，以及適應環境的生存法寶。" },
+  { id: "g3-magnet",   grade: 3, strand: "phys",  logo: "🧲", name: "磁鐵與力",       desc: "生活中的力有哪些？探索磁力的特性與磁鐵在生活中的應用。" },
+  { id: "g3-air",      grade: 3, strand: "chem",  logo: "💨", name: "空氣與風",       desc: "空氣在哪裡？空氣的特性、風力風向，以及乾淨空氣的重要。" },
+  { id: "g3-dissolve", grade: 3, strand: "chem",  logo: "🧂", name: "溶解與廚房科學", desc: "辨認廚房中的材料，探討物質溶解的量與水溶液的酸鹼變化。" },
+  { id: "g3-temp",     grade: 3, strand: "chem",  logo: "🧊", name: "溫度與物質變化", desc: "水和冰、水和水蒸氣：溫度改變對水的三態與其他物質的影響。" },
+  { id: "g3-weather",  grade: 3, strand: "earth", logo: "⛅", name: "天氣觀測",       desc: "天氣對生活的影響、如何觀測天氣與應用氣象預報資訊。" },
+  /* 四年級 */
+  { id: "g4-sky",       grade: 4, strand: "earth", logo: "🌙", name: "月亮與天空",     desc: "一天的天空、太陽位置的改變、月亮位置與月相的變化。" },
+  { id: "g4-aquatic",   grade: 4, strand: "life",  logo: "🐟", name: "水域生物",       desc: "認識水域環境、水生動植物如何適應環境，並珍惜水域環境。" },
+  { id: "g4-insect",    grade: 4, strand: "life",  logo: "🐞", name: "昆蟲大解密",     desc: "昆蟲在哪裡？昆蟲的一生、如何適應環境成長，以及牠們的重要性。" },
+  { id: "g4-soundlight",grade: 4, strand: "phys",  logo: "🔦", name: "聲音與光",       desc: "聲音的產生與傳播、光的直進與反射，以及聲與光的生活應用。" },
+  { id: "g4-circuit",   grade: 4, strand: "phys",  logo: "💡", name: "電路",           desc: "如何讓燈泡發亮？電路的串聯與並聯，以及用電安全觀念。" },
+  { id: "g4-force",     grade: 4, strand: "phys",  logo: "💪", name: "生活中的力",     desc: "力的作用與表示方法、力的比較、浮力與動力傳送。" },
+  { id: "g4-watermove", grade: 4, strand: "phys",  logo: "💧", name: "水的移動",       desc: "毛細現象、虹吸現象與連通管原理的特性與應用。" },
+  { id: "g4-land",      grade: 4, strand: "earth", logo: "⛰️", name: "地表與地震防災", desc: "地表物質與環境的變動、大地的災害，以及地震防災。" },
+  { id: "g4-energy",    grade: 4, strand: "phys",  logo: "⚡", name: "能源與自然資源", desc: "能量的重要、生活中的能源、自然資源的運用與開發影響。" },
+  /* 五年級 */
+  { id: "g5-sun",      grade: 5, strand: "earth", logo: "☀️", name: "太陽與光",       desc: "太陽位置與四季的關係、光的折射與光的特性現象。" },
+  { id: "g5-stars",    grade: 5, strand: "earth", logo: "✨", name: "星空探索",       desc: "認識星空與太陽系成員、觀星方法、四季星空與夜裡辨認方位。" },
+  { id: "g5-plant",    grade: 5, strand: "life",  logo: "🌿", name: "植物的構造與繁殖", desc: "植物如何製造養分、繁殖方式，以及植物的特徵與分類。" },
+  { id: "g5-animal",   grade: 5, strand: "life",  logo: "🦁", name: "動物的生存與繁殖", desc: "動物如何求生存、社會行為，以及延續生命的方式。" },
+  { id: "g5-solution", grade: 5, strand: "chem",  logo: "🧪", name: "水溶液",         desc: "溶解現象、水溶液的酸鹼性與導電性。" },
+  { id: "g5-burn",     grade: 5, strand: "chem",  logo: "🔥", name: "燃燒與生鏽",     desc: "氧氣與燃燒的條件、滅火原理、生鏽成因與防鏽方法。" },
+  { id: "g5-force",    grade: 5, strand: "phys",  logo: "🏃", name: "力與運動",       desc: "地球引力、力的測量、摩擦力，以及物體運動的快慢。" },
+  { id: "g5-sound",    grade: 5, strand: "phys",  logo: "🎵", name: "聲音與樂器",     desc: "聲音三要素、樂音與噪音的差別、樂器如何發出不同聲音。" },
+  { id: "g5-heat",     grade: 5, strand: "phys",  logo: "♨️", name: "熱的作用與傳播", desc: "溫度對物質體積的影響、熱的傳播方式、保溫與散熱。" },
+  /* 六年級 */
+  { id: "g6-weather", grade: 6, strand: "earth", logo: "🌀", name: "天氣變化與颱風", desc: "大氣中的水、天氣圖判讀、颱風與防災，以及氣候變遷。" },
+  { id: "g6-land",    grade: 6, strand: "earth", logo: "🪨", name: "大地與地質",     desc: "地層、岩石、礦物與土壤，大地的變動、流水作用與地景保育。" },
+  { id: "g6-em",      grade: 6, strand: "phys",  logo: "🧭", name: "電磁作用",       desc: "指北針與地磁、電磁鐵的原理，以及電磁作用的生活應用。" },
+  { id: "g6-machine", grade: 6, strand: "phys",  logo: "⚙️", name: "簡單機械",       desc: "槓桿、輪軸、滑輪、齒輪與鏈條：巧妙的施力與動力傳送工具。" },
+  { id: "g6-energy",  grade: 6, strand: "phys",  logo: "🔋", name: "能量與能源",     desc: "能量如何互相轉換、生活中的能源利用與節約能源。" },
+  { id: "g6-eco",     grade: 6, strand: "life",  logo: "🌍", name: "生態與永續",     desc: "族群與群落、生物間交互作用、生態系與永續家園。" },
+  /* 七年級（生物） */
+  { id: "g7-method",      grade: 7, strand: "life", logo: "🔬", name: "科學方法與顯微鏡", desc: "自然科學探究歷程、顯微鏡操作、實驗設計與資料判讀。" },
+  { id: "g7-cell",        grade: 7, strand: "life", logo: "🦠", name: "細胞與生物體",   desc: "細胞構造與功能、物質進出細胞、組織器官與系統層級。" },
+  { id: "g7-nutrition",   grade: 7, strand: "life", logo: "🍃", name: "養分與光合作用", desc: "食物中的養分、酵素與消化、光合作用與呼吸作用。" },
+  { id: "g7-transport",   grade: 7, strand: "life", logo: "❤️", name: "運輸協調與恆定", desc: "植物維管束、人體循環、神經內分泌與體內恆定。" },
+  { id: "g7-classify",    grade: 7, strand: "life", logo: "🦋", name: "生物分類與多樣性", desc: "生物分類階層、常見類群特徵，以及生物多樣性與保育。" },
+  { id: "g7-repro",       grade: 7, strand: "life", logo: "🧬", name: "生殖與遺傳",     desc: "無性與有性生殖、生殖系統與胚胎發育、遺傳規律與性狀。" },
+  { id: "g7-evolution",   grade: 7, strand: "life", logo: "🦕", name: "演化與生命史",   desc: "化石與地層證據、演化概念、生物適應與天擇。" },
+  { id: "g7-ecosystem",   grade: 7, strand: "life", logo: "🕸️", name: "生態系",         desc: "族群群集與生態系、食物鏈食物網、能量流動與物質循環。" },
+  { id: "g7-conservation",grade: 7, strand: "life", logo: "♻️", name: "環境保育與永續", desc: "環境變遷與生物多樣性、污染與資源利用、保育與公民行動。" },
+  /* 八年級（理化） */
+  { id: "g8-measure", grade: 8, strand: "phys", logo: "📏", name: "基本測量與密度", desc: "長度質量時間體積的測量、密度、實驗誤差與圖表判讀。" },
+  { id: "g8-matter",  grade: 8, strand: "chem", logo: "⚗️", name: "認識物質與分離", desc: "純物質與混合物、溶液與濃度、過濾蒸餾層析等分離方法。" },
+  { id: "g8-wave",    grade: 8, strand: "phys", logo: "🔊", name: "波動與聲音",     desc: "波的傳播、波速頻率波長、聲音三要素與噪音。" },
+  { id: "g8-optics",  grade: 8, strand: "phys", logo: "🔍", name: "光與成像",       desc: "反射定律、平面鏡與透鏡成像、折射色散與顏色。" },
+  { id: "g8-heat",    grade: 8, strand: "phys", logo: "🌡️", name: "溫度與熱",       desc: "熱平衡、熱量與比熱、熱對物質的影響與熱的傳播。" },
+  { id: "g8-atom",    grade: 8, strand: "chem", logo: "⚛️", name: "原子與分子",     desc: "原子分子與元素、週期表初探、化合物與化學式。" },
+  { id: "g8-reaction",grade: 8, strand: "chem", logo: "💥", name: "化學反應",       desc: "化學反應式、質量守恆、反應速率與催化。" },
+  { id: "g8-acid",    grade: 8, strand: "chem", logo: "🍋", name: "酸鹼鹽",         desc: "pH 與指示劑、酸鹼中和、鹽類與生活應用。" },
+  { id: "g8-redox",   grade: 8, strand: "chem", logo: "🔩", name: "氧化還原與電化學", desc: "燃燒與氧化、金屬活性、電池電解與防鏽。" },
+  { id: "g8-organic", grade: 8, strand: "chem", logo: "🧴", name: "有機化合物",     desc: "碳化合物、食品清潔劑與聚合物、能源與材料。" },
+  { id: "g8-force",   grade: 8, strand: "phys", logo: "⚖️", name: "力與壓力",       desc: "力的表示與合成、壓力液壓與浮力、簡單機械複習。" },
+  /* 九年級 */
+  { id: "g9-motion",  grade: 9, strand: "phys",  logo: "🏎️", name: "直線運動",       desc: "位置位移與路徑長、速度與加速度、x-t 與 v-t 運動圖表。" },
+  { id: "g9-newton",  grade: 9, strand: "phys",  logo: "🍎", name: "力與牛頓定律",   desc: "慣性與牛頓三大運動定律、摩擦力、重力與萬有引力。" },
+  { id: "g9-energy",  grade: 9, strand: "phys",  logo: "🎢", name: "功與能",         desc: "功與功率、動能與位能、能量轉換守恆與機械效率。" },
+  { id: "g9-current", grade: 9, strand: "phys",  logo: "🔌", name: "電流電壓與電阻", desc: "電路與電流、歐姆定律、串並聯、電功率與用電安全。" },
+  { id: "g9-em",      grade: 9, strand: "phys",  logo: "🧲", name: "電與磁",         desc: "磁場與電流磁效應、電磁感應、發電機與馬達。" },
+  { id: "g9-geology", grade: 9, strand: "earth", logo: "🌋", name: "地球構造與板塊", desc: "地球內部圈層、板塊構造、地震火山與岩石循環。" },
+  { id: "g9-fossil",  grade: 9, strand: "earth", logo: "🐚", name: "地層化石與地質史", desc: "地層判讀、化石與地質年代、臺灣地質特色。" },
+  { id: "g9-ocean",   grade: 9, strand: "earth", logo: "🌊", name: "大氣海洋與天氣", desc: "大氣分層、海洋環流、天氣系統與颱風防災。" },
+  { id: "g9-space",   grade: 9, strand: "earth", logo: "🪐", name: "太陽系宇宙與永續", desc: "日月地關係、太陽系與宇宙尺度、全球變遷與永續行動。" }
+];
+
+/* ---------- 跨年級知識脈絡連結 ---------- */
+const LINKS = [
+  /* 生命科學 */
+  ["g3-plant", "g3-planting"], ["g3-plant", "g5-plant"], ["g3-planting", "g5-plant"],
+  ["g5-plant", "g7-nutrition"], ["g5-plant", "g7-classify"],
+  ["g3-animal", "g4-insect"], ["g3-animal", "g4-aquatic"],
+  ["g4-insect", "g5-animal"], ["g4-aquatic", "g5-animal"], ["g4-aquatic", "g6-eco"],
+  ["g5-animal", "g7-classify"], ["g5-animal", "g7-repro"],
+  ["g7-method", "g7-cell"], ["g7-cell", "g7-nutrition"], ["g7-cell", "g7-repro"],
+  ["g7-repro", "g7-evolution"],
+  ["g6-eco", "g7-ecosystem"], ["g7-ecosystem", "g7-conservation"],
+  ["g7-conservation", "g9-space"],
+  /* 物質與化學 */
+  ["g3-dissolve", "g5-solution"], ["g5-solution", "g8-acid"], ["g5-solution", "g8-matter"],
+  ["g3-air", "g5-burn"], ["g5-burn", "g8-redox"], ["g5-burn", "g8-reaction"],
+  ["g3-temp", "g5-heat"], ["g5-heat", "g8-heat"],
+  ["g8-matter", "g8-atom"], ["g8-atom", "g8-reaction"],
+  ["g8-reaction", "g8-acid"], ["g8-reaction", "g8-redox"], ["g8-atom", "g8-organic"],
+  /* 物理與能量 */
+  ["g3-magnet", "g6-em"], ["g6-em", "g9-em"],
+  ["g4-circuit", "g6-em"], ["g4-circuit", "g9-current"], ["g9-current", "g9-em"],
+  ["g3-magnet", "g4-force"], ["g4-force", "g5-force"], ["g5-force", "g8-force"],
+  ["g8-force", "g9-newton"], ["g9-motion", "g9-newton"], ["g9-newton", "g9-energy"],
+  ["g5-force", "g9-motion"],
+  ["g4-soundlight", "g5-sound"], ["g5-sound", "g8-wave"],
+  ["g4-soundlight", "g8-optics"], ["g5-sun", "g8-optics"],
+  ["g4-watermove", "g8-force"],
+  ["g6-machine", "g8-force"], ["g6-machine", "g9-energy"],
+  ["g4-energy", "g6-energy"], ["g6-energy", "g9-energy"],
+  ["g7-method", "g8-measure"], ["g8-measure", "g9-motion"],
+  /* 地球與宇宙 */
+  ["g3-weather", "g6-weather"], ["g6-weather", "g9-ocean"],
+  ["g4-land", "g6-land"], ["g6-land", "g9-geology"],
+  ["g9-geology", "g9-fossil"], ["g7-evolution", "g9-fossil"],
+  ["g4-sky", "g5-sun"], ["g4-sky", "g5-stars"],
+  ["g5-stars", "g9-space"], ["g5-sun", "g9-space"]
+];
+
+/* ---------- 場景基礎 ---------- */
+const container = document.getElementById("app");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a16);
+scene.fog = new THREE.Fog(0x060a16, 180, 420);
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 1000);
+const HOME_POS = new THREE.Vector3(86, 96, 128);
+const HOME_TARGET = new THREE.Vector3(0, 48, 0);
+camera.position.copy(HOME_POS);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME_TARGET);
+controls.enableDamping = true;
+controls.dampingFactor = .06;
+controls.autoRotate = true;
+controls.autoRotateSpeed = .55;
+controls.minDistance = 30;
+controls.maxDistance = 340;
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+const keyLight = new THREE.DirectionalLight(0xbfd8ff, 1.1);
+keyLight.position.set(60, 140, 80);
+scene.add(keyLight);
+
+/* 星空背景 */
+{
+  const starGeo = new THREE.BufferGeometry();
+  const N = 1400, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 260 + Math.random() * 160;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph) + 40;
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  starGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+    color: 0x9db8e8, size: .9, sizeAttenuation: true, transparent: true, opacity: .8
+  })));
+}
+
+/* ---------- 版面配置：年級為層、脈絡分扇區 ---------- */
+const LAYER_GAP = 17;
+const RADIUS = 30;
+const SECTOR_CENTER = { life: 90, chem: 200, phys: 305, earth: 15 };
+const SECTOR_SPAN = 78;
+
+const gradeY = g => (g - 3) * LAYER_GAP;
+const nodeById = {};
+NODES.forEach(n => nodeById[n.id] = n);
+
+/* 每層每脈絡的節點在該扇區內均分角度 */
+{
+  const groups = {};
+  NODES.forEach(n => {
+    const key = n.grade + "_" + n.strand;
+    (groups[key] = groups[key] || []).push(n);
+  });
+  Object.values(groups).forEach(list => {
+    list.forEach((n, i) => {
+      const center = SECTOR_CENTER[n.strand];
+      const off = list.length === 1 ? 0 : (i / (list.length - 1) - .5) * SECTOR_SPAN;
+      const a = (center + off) * Math.PI / 180;
+      n.pos = new THREE.Vector3(Math.cos(a) * RADIUS, gradeY(n.grade), Math.sin(a) * RADIUS);
+    });
+  });
+}
+
+/* ---------- 年級樓層圓盤與標籤 ---------- */
+function makeTextSprite(text, { size = 44, color = "#e8eefb", bg = null, pad = 18 } = {}) {
+  const c = document.createElement("canvas");
+  const ctx = c.getContext("2d");
+  ctx.font = `800 ${size}px "Noto Sans TC","Microsoft JhengHei",sans-serif`;
+  const w = ctx.measureText(text).width;
+  c.width = Math.ceil(w + pad * 2);
+  c.height = size + pad * 2;
+  const ctx2 = c.getContext("2d");
+  if (bg) {
+    ctx2.fillStyle = bg;
+    ctx2.beginPath();
+    ctx2.roundRect(0, 0, c.width, c.height, 16);
+    ctx2.fill();
+  }
+  ctx2.font = `800 ${size}px "Noto Sans TC","Microsoft JhengHei",sans-serif`;
+  ctx2.fillStyle = color;
+  ctx2.textAlign = "center";
+  ctx2.textBaseline = "middle";
+  ctx2.fillText(text, c.width / 2, c.height / 2 + 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(c.width / 22, c.height / 22, 1);
+  return sp;
+}
+
+for (let g = 3; g <= 9; g++) {
+  const y = gradeY(g);
+  const color = GRADE_COLORS[g];
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(RADIUS - .35, RADIUS + .35, 96),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .28, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = y;
+  scene.add(ring);
+
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(RADIUS, 96),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .045, side: THREE.DoubleSide, depthWrite: false })
+  );
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = y;
+  scene.add(disc);
+
+  const label = makeTextSprite(GRADE_NAMES[g] + (g <= 6 ? "（國小）" : "（國中）"), {
+    size: 40,
+    color: "#" + new THREE.Color(color).getHexString(),
+    bg: "rgba(8,13,28,.72)"
+  });
+  label.position.set(-(RADIUS + 13), y + 1.5, 0);
+  scene.add(label);
+}
+
+/* 中央光柱：串起 3→9 年級的學習軸線 */
+{
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(.5, .5, gradeY(9) + 8, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x5b8dd6, transparent: true, opacity: .16 })
+  );
+  beam.position.y = (gradeY(9) + 8) / 2 - 4;
+  scene.add(beam);
+}
+
+/* ---------- 課程節點：Logo + 主題名稱貼圖 ---------- */
+function makeNodeTexture(node) {
+  const W = 300, H = 360;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  const strandHex = "#" + new THREE.Color(STRAND_COLORS[node.strand]).getHexString();
+
+  /* Logo 圓形徽章 */
+  const cx = W / 2, cy = 120, R = 96;
+  const grad = ctx.createRadialGradient(cx, cy, R * .2, cx, cy, R);
+  grad.addColorStop(0, "rgba(20,30,58,.98)");
+  grad.addColorStop(1, "rgba(10,16,34,.94)");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = strandHex;
+  ctx.beginPath(); ctx.arc(cx, cy, R - 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255,255,255,.35)";
+  ctx.beginPath(); ctx.arc(cx, cy, R - 14, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.font = "104px 'Segoe UI Emoji','Noto Color Emoji',sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(node.logo, cx, cy + 8);
+
+  /* 主題名稱膠囊 */
+  ctx.font = "800 34px 'Noto Sans TC','Microsoft JhengHei',sans-serif";
+  const tw = ctx.measureText(node.name).width;
+  const bw = Math.min(W - 8, tw + 44), bh = 62, by = 248;
+  ctx.fillStyle = "rgba(8,13,28,.88)";
+  ctx.beginPath(); ctx.roundRect(cx - bw / 2, by, bw, bh, 31); ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = strandHex;
+  ctx.beginPath(); ctx.roundRect(cx - bw / 2 + 2, by + 2, bw - 4, bh - 4, 29); ctx.stroke();
+  ctx.fillStyle = "#eef3ff";
+  ctx.fillText(node.name, cx, by + bh / 2 + 3);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+const sprites = [];
+NODES.forEach(node => {
+  const mat = new THREE.SpriteMaterial({ map: makeNodeTexture(node), transparent: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(10, 12, 1);
+  sp.position.copy(node.pos);
+  sp.position.y += 2.2;
+  sp.userData.node = node;
+  scene.add(sp);
+  node.sprite = sp;
+  sprites.push(sp);
+
+  /* 節點落點光暈 */
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.4, 32),
+    new THREE.MeshBasicMaterial({ color: STRAND_COLORS[node.strand], transparent: true, opacity: .5, depthWrite: false })
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.set(node.pos.x, node.pos.y + .06, node.pos.z);
+  scene.add(glow);
+  node.glow = glow;
+});
+
+/* ---------- 連結曲線 ---------- */
+const edges = [];
+const BASE_EDGE_OPACITY = .42;
+LINKS.forEach(([aId, bId]) => {
+  const a = nodeById[aId], b = nodeById[bId];
+  if (!a || !b) { console.warn("missing node", aId, bId); return; }
+  const pa = a.pos.clone().setY(a.pos.y + 2), pb = b.pos.clone().setY(b.pos.y + 2);
+  const mid = pa.clone().add(pb).multiplyScalar(.5);
+  const outward = mid.clone().setY(0);
+  if (outward.lengthSq() < 1) outward.set(1, 0, 0);
+  outward.normalize();
+  const sameLayer = a.grade === b.grade;
+  mid.add(outward.multiplyScalar(sameLayer ? 6 : 10));
+  if (sameLayer) mid.y += 5;
+
+  const curve = new THREE.QuadraticBezierCurve3(pa, mid, pb);
+  const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(40));
+  const strand = a.strand === b.strand ? a.strand : b.strand;
+  const mat = new THREE.LineBasicMaterial({
+    color: STRAND_COLORS[strand],
+    transparent: true,
+    opacity: BASE_EDGE_OPACITY,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  edges.push({ line, a, b, strand });
+});
+
+/* ---------- 互動：點選節點、脈絡篩選 ---------- */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let selected = null;
+let strandFilter = "all";
+
+const infoPanel = document.getElementById("infoPanel");
+
+function neighborsOf(node) {
+  const list = [];
+  edges.forEach(e => {
+    if (e.a === node) list.push(e.b);
+    else if (e.b === node) list.push(e.a);
+  });
+  return list;
+}
+
+function applyVisibility() {
+  NODES.forEach(n => {
+    const strandOK = strandFilter === "all" || n.strand === strandFilter;
+    let op = strandOK ? 1 : .08;
+    let glowOp = strandOK ? .5 : .04;
+    if (selected) {
+      const isSel = n === selected;
+      const isNb = neighborsOf(selected).includes(n);
+      op = isSel ? 1 : isNb ? .95 : .1;
+      glowOp = isSel || isNb ? .6 : .05;
+    }
+    n.sprite.material.opacity = op;
+    n.glow.material.opacity = glowOp;
+  });
+  edges.forEach(e => {
+    const strandOK = strandFilter === "all" || (e.a.strand === strandFilter || e.b.strand === strandFilter);
+    let op = strandOK ? BASE_EDGE_OPACITY : .03;
+    if (selected) op = (e.a === selected || e.b === selected) ? .95 : .04;
+    e.line.material.opacity = op;
+  });
+}
+
+function showInfo(node) {
+  document.getElementById("infoGrade").textContent =
+    GRADE_NAMES[node.grade] + (node.grade <= 6 ? "・國小" : "・國中");
+  document.getElementById("infoLogo").textContent = node.logo;
+  document.getElementById("infoName").textContent = node.name;
+  document.getElementById("infoDesc").textContent = node.desc;
+  const ul = document.getElementById("infoLinks");
+  ul.innerHTML = "";
+  const nbs = neighborsOf(node).sort((x, y) => x.grade - y.grade);
+  if (!nbs.length) {
+    ul.innerHTML = '<li style="color:var(--muted);cursor:default">（此主題暫無標註的銜接線）</li>';
+  } else {
+    nbs.forEach(nb => {
+      const li = document.createElement("li");
+      const dir = nb.grade < node.grade ? "⬇️" : nb.grade > node.grade ? "⬆️" : "↔️";
+      li.innerHTML = `${dir} ${nb.logo} ${nb.name}<span class="mini">${GRADE_NAMES[nb.grade]}</span>`;
+      li.addEventListener("click", () => selectNode(nb, true));
+      ul.appendChild(li);
+    });
+  }
+  infoPanel.classList.add("show");
+}
+
+function selectNode(node, fly = false) {
+  selected = node;
+  applyVisibility();
+  showInfo(node);
+  if (fly) {
+    const p = node.pos;
+    controls.target.lerp(new THREE.Vector3(p.x * .4, p.y + 2, p.z * .4), 1);
+  }
+}
+
+function clearSelection() {
+  selected = null;
+  infoPanel.classList.remove("show");
+  applyVisibility();
+}
+
+document.getElementById("infoClose").addEventListener("click", clearSelection);
+
+let downXY = null;
+renderer.domElement.addEventListener("pointerdown", e => downXY = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!downXY) return;
+  const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]);
+  downXY = null;
+  if (moved > 6) return; /* 是拖曳，不是點擊 */
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(sprites);
+  const hit = hits.find(h => h.object.material.opacity > .3);
+  if (hit) selectNode(hit.object.userData.node);
+  else clearSelection();
+});
+
+renderer.domElement.addEventListener("pointermove", e => {
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(sprites);
+  renderer.domElement.style.cursor =
+    hits.some(h => h.object.material.opacity > .3) ? "pointer" : "grab";
+});
+
+/* 脈絡篩選 */
+document.querySelectorAll("#strandChips .chip").forEach(btn => {
+  btn.addEventListener("click", () => {
+    strandFilter = btn.dataset.strand;
+    document.querySelectorAll("#strandChips .chip").forEach(b =>
+      b.classList.toggle("dim", strandFilter !== "all" && b.dataset.strand !== strandFilter && b.dataset.strand !== "all"));
+    clearSelection();
+  });
+});
+
+/* 視角控制 */
+const btnRotate = document.getElementById("btnRotate");
+btnRotate.addEventListener("click", () => {
+  controls.autoRotate = !controls.autoRotate;
+  btnRotate.textContent = controls.autoRotate ? "⏸️ 暫停旋轉" : "▶️ 自動旋轉";
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  camera.position.copy(HOME_POS);
+  controls.target.copy(HOME_TARGET);
+});
+document.getElementById("btnTop").addEventListener("click", () => {
+  camera.position.set(0, 220, .01);
+  controls.target.set(0, 48, 0);
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------- 動畫 ---------- */
+const clock = new THREE.Clock();
+function tick() {
+  requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+  NODES.forEach((n, i) => {
+    n.sprite.position.y = n.pos.y + 2.2 + Math.sin(t * 1.1 + i * .7) * .35;
+  });
+  controls.update();
+  renderer.render(scene, camera);
+}
+applyVisibility();
+tick();
+</script>
+</body>
+</html>
